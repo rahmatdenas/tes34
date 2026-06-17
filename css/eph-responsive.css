@@ -96,12 +96,11 @@
 
   /* ---------- Branding & navigasi lebih ringkas ---------- */
   #branding p {
-    margin: 8px 16px 0;
+    margin-top: 0px;
     font-size: 11px;
   }
 
   #branding h1 {
-    margin: 4px 16px 10px;
     font-size: 20px;
   }
 
