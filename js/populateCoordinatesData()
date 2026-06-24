@@ -5,6 +5,15 @@ var currentRenderIndex = 0;
 var currentFilteredRecords = [];
 var isFilterEventAttached = false; 
 
+// Fungsi pembelah array menjadi potongan kecil (Batching)
+function potongJadiKelompok(array, ukuran) {
+  let hasilPotongan = [];
+  for (let i = 0; i < array.length; i += ukuran) {
+    hasilPotongan.push(array.slice(i, i + ukuran));
+  }
+  return hasilPotongan;
+}
+
 function formatWikidataDate(dateString, precision) {
   if (!dateString) return null;  
   let cleanStr = dateString.replace(/^[+-]/, '');   
@@ -144,49 +153,72 @@ function populateProvinceTypesData() {
 }
 
 function populateCoordinatesData() {
-  let inputTxt = document.getElementById('jenis-input').value.trim();
-  let dynamicQuery = SPARQL_QUERY_1.replace('<PLACEHOLDER_JENIS>', inputTxt);
+  // 1. Ambil semua kunci QID dari hasil Kueri 0
+  let daftarQid = Object.keys(Records).map(id => 'wd:' + id);
+  if (daftarQid.length === 0) return Promise.resolve();
 
-  return queryWdqsThenProcess(
-    dynamicQuery,
-    function(result) {
-      let record = Records[result.siteQid.value];
-      
-      // === KUNCI PENGAMAN (ANTI CRASH DATA GAIB) ===
-      if (!record) return; 
+  // 2. Belah array QID menjadi kelompok berisi maksimal 1000 data
+  let kelompokCicilan = potongJadiKelompok(daftarQid, 1000);
 
-      let wktBits = result.coord.value.split(/\(|\)| /);
-      record.lat = parseFloat(wktBits[2]);
-      record.lon = parseFloat(wktBits[1]);
-    },
-    function() {
-      BootstrapDataIsLoaded = true;
-    },
-  );
+  // 3. Tembak kueri secara paralel untuk setiap kelompok
+  let daftarJanji = kelompokCicilan.map(cicilan => {
+    let teksQids = cicilan.join(' ');
+    let kueriFinal = SPARQL_QUERY_1_TEMPLATE.replace('<PLACEHOLDER_QIDS>', teksQids);
+
+    return queryWdqsThenProcess(
+      kueriFinal,
+      // === INI ADALAH CALLBACK LAMA ANDA YANG DIMASUKKAN KE SINI ===
+      function(result) {
+        let record = Records[result.siteQid.value];
+        if (!record) return; 
+
+        let wktBits = result.coord.value.split(/\(|\)| /);
+        record.lat = parseFloat(wktBits[2]);
+        record.lon = parseFloat(wktBits[1]);
+      }
+    );
+  });
+
+  // 4. Setelah SEMUA cicilan koordinat selesai, baru nyalakan penanda Bootstrap
+  return Promise.all(daftarJanji).then(function() {
+    BootstrapDataIsLoaded = true;
+  });
 }
 
 function populateImageAndWikipediaData() {
-  let inputTxt = document.getElementById('jenis-input').value.trim();
-  let dynamicQuery = SPARQL_QUERY_3.replace('<PLACEHOLDER_JENIS>', inputTxt);
+  // 1. Ambil semua kunci QID
+  let daftarQid = Object.keys(Records).map(id => 'wd:' + id);
+  if (daftarQid.length === 0) return Promise.resolve();
 
-  return queryWdqsThenProcess(
-    dynamicQuery,
-    function(result) {
-      let record = Records[result.siteQid.value];      
-      
-      // === KUNCI PENGAMAN (ANTI CRASH DATA GAIB) ===
-      if (!record) return; 
+  // 2. Belah array QID menjadi kelompok berisi maksimal 1000 data
+  let kelompokCicilan = potongJadiKelompok(daftarQid, 1000);
 
-      if ('image' in result) {
-        if (!record.imageFilename) {
-          record.imageFilename = extractImageFilename(result.image);
+  // 3. Tembak kueri secara paralel
+  let daftarJanji = kelompokCicilan.map(cicilan => {
+    let teksQids = cicilan.join(' ');
+    let kueriFinal = SPARQL_QUERY_3_TEMPLATE.replace('<PLACEHOLDER_QIDS>', teksQids);
+
+    return queryWdqsThenProcess(
+      kueriFinal,
+      // === INI ADALAH CALLBACK LAMA ANDA YANG DIMASUKKAN KE SINI ===
+      function(result) {
+        let record = Records[result.siteQid.value];      
+        if (!record) return; 
+
+        if ('image' in result) {
+          if (!record.imageFilename) {
+            record.imageFilename = extractImageFilename(result.image);
+          }
+        }      
+        if ('wikipediaUrlTitle' in result) {
+          record.articleTitle = decodeURIComponent(result.wikipediaUrlTitle.value);
         }
-      }      
-      if ('wikipediaUrlTitle' in result) {
-        record.articleTitle = decodeURIComponent(result.wikipediaUrlTitle.value);
       }
-    },
-  );
+    );
+  });
+
+  // 4. Kembalikan janji agar JS tahu kapan semua gambar selesai ditarik
+  return Promise.all(daftarJanji);
 }
 
 function populateImportantEventsData(qid) {
