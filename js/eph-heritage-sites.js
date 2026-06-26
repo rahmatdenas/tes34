@@ -103,13 +103,12 @@ var currentKategoriUtama = 'general';
 // === UBAH FUNGSI DETEKTIF MENJADI SEPERTI INI ===
 function tentukanKategoriKueri(inputTxt) {
   if (inputTxt.includes('Q5')) return 'tokoh';
-  
-  // Karena input publikasi sepaket mengandung Q47461344, kita cek ini lebih dulu.
-  // Jika inputnya "Q47461344 Q7725634", program akan langsung me-return 'publikasi' dan berhenti di sini.
   if (inputTxt.includes('Q47461344')) return 'publikasi';
-  
-  // Jika input HANYA "Q7725634" (tanpa Q47461344), program akan lolos dari cek di atas dan masuk ke sini.
   if (inputTxt.includes('Q7725634')) return 'fiksi'; 
+  
+  // === TAMBAHAN BARU DI SINI ===
+  if (inputTxt.includes('Q34770')) return 'bahasa';
+  if (inputTxt.includes('Q19861951')) return 'kuliner'; 
   
   if (inputTxt.includes('Q11032') || inputTxt.includes('Q41298')) return 'pers';
   
@@ -745,6 +744,10 @@ let teksJudul = 'Informasi';
     teksJudul = 'Informasi Karya Fiksi';
   } else if (currentKategoriUtama === 'tokoh') {
     teksJudul = 'Profil Tokoh';
+  } else if (currentKategoriUtama === 'bahasa') {
+    teksJudul = 'Informasi Bahasa';
+  } else if (currentKategoriUtama === 'kuliner') {
+    teksJudul = 'Informasi Kuliner';
   } else {
     let isBersejarah = false;
     if (record.rawTahunBerdiri) {
@@ -774,12 +777,16 @@ let teksJudul = 'Informasi';
   }
 
   let infoLokasiHtml = '';
+  // Sesuaikan Prefix berdasarkan kategori agar bahasanya natural
+  let prefixLokasi = 'Terletak di:';
+  if (currentKategoriUtama === 'tokoh') prefixLokasi = 'Terkait dengan:';
+  else if (currentKategoriUtama === 'bahasa') prefixLokasi = 'Digunakan di:';
+  else if (currentKategoriUtama === 'kuliner') prefixLokasi = 'Berasal dari:';
+
   if (record.lat && record.lon) {
     let mapsUrl = `https://www.google.com/maps?q=${record.lat},${record.lon}`;
-    infoLokasiHtml = `<p class="koordinat-link">Terletak di <a href="${mapsUrl}" target="_blank" rel="noopener noreferrer" title="Buka di Google Maps">${namaLokasi}</a></p>`;
+    infoLokasiHtml = `<p class="koordinat-link">${prefixLokasi.replace(':', '')} <a href="${mapsUrl}" target="_blank" rel="noopener noreferrer" title="Buka di Google Maps">${namaLokasi}</a></p>`;
   } else {
-    // Khusus tokoh, ubah kata "Terletak di" menjadi "Terkait dengan" agar lebih natural
-    let prefixLokasi = (currentKategoriUtama === 'tokoh') ? 'Terkait dengan:' : 'Terletak di:';
     infoLokasiHtml = 
       `<p class="koordinat-link">${prefixLokasi} ${namaLokasi}</p>` +
       `<p>Koordinat: <span style="font-style: italic; color: #888;">Data belum tersedia</span></p>`;
@@ -792,6 +799,8 @@ let teksJudul = 'Informasi';
     if (currentKategoriUtama === 'tokoh') labelTahun = 'Lahir';
     else if (currentKategoriUtama === 'publikasi' || currentKategoriUtama === 'pers') labelTahun = 'Diterbitkan';
     else if (currentKategoriUtama === 'fiksi') labelTahun = 'Diciptakan';
+    else if (currentKategoriUtama === 'kuliner') labelTahun = 'Diciptakan/Muncul';
+    else if (currentKategoriUtama === 'bahasa') labelTahun = 'Mulai Digunakan';
 
     if (record.tahunBerdiri) {
       infoTahunHtml = `<p>${labelTahun}: ${record.tahunBerdiri}</p>`;
